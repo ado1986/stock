@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票关注列表管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .form-section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="url"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .delete-btn {
+            background-color: #dc3545;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash-success {
+            color: green;
+            padding: 10px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .flash-error {
+            color: red;
+            padding: 10px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .price-alert {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+        
+        .price-low {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .price-high {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>股票关注列表管理</h1>
+        
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+        
+        <div class="form-section">
+            <h2>添加关注股票</h2>
+            <form action="{{ url_for('add_stock') }}" method="post">
+                <div class="form-group">
+                    <label for="stock_name">股票名称 *</label>
+                    <input type="text" id="stock_name" name="stock_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stock_code">股票代码 *</label>
+                    <input type="text" id="stock_code" name="stock_code" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stock_url">股票地址</label>
+                    <input type="text" id="stock_url" name="stock_url">
+                </div>
+                
+                <div class="form-group">
+                    <label for="price_low">价格低于提醒 (元)</label>
+                    <input type="number" id="price_low" name="price_low" step="0.01" placeholder="当价格低于此值时提醒">
+                </div>
+                
+                <div class="form-group">
+                    <label for="price_high">价格高于提醒 (元)</label>
+                    <input type="number" id="price_high" name="price_high" step="0.01" placeholder="当价格高于此值时提醒">
+                </div>
+                
+                <button type="submit">添加股票</button>
+            </form>
+        </div>
+        
+        <h2>已关注的股票</h2>
+        {% if stocks %}
+        <table>
+            <thead>
+                <tr>
+                    <th>股票名称</th>
+                    <th>股票代码</th>
+                    <th>股票地址</th>
+                    <th>价格提醒</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in stocks %}
+                <tr>
+                    <td>{{ stock.stockname }}</td>
+                    <td>{{ stock.stock_code }}</td>
+                    <td>
+                        {% if stock.stock_url %}
+                            <a href="{{ stock.stock_url }}" target="_blank">查看</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if stock.price_low %}
+                            <span class="price-alert price-low">低于 {{ stock.price_low }} 元</span>
+                        {% endif %}
+                        {% if stock.price_high %}
+                            <span class="price-alert price-high">高于 {{ stock.price_high }} 元</span>
+                        {% endif %}
+                        {% if not stock.price_low and not stock.price_high %}
+                            未设置
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="delete-btn" onclick="deleteStock({{ stock.id }})">删除</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-data">暂无关注的股票</p>
+        {% endif %}
+    </div>
+
+    <script>
+        function deleteStock(stockId) {
+            if (confirm('确定要删除这个股票关注吗？')) {
+                fetch(`/delete_stock/${stockId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload(); // 重新加载页面以更新列表
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('删除请求失败');
+                });
+            }
+        }
+    </script>
+</body>
+</html>
