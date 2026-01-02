@@ -175,6 +175,56 @@ class MySQLStorage:
             self.connection.rollback()
             return False
     
+    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None, table_name="stock_price_history"):
+        """
+        保存股票价格历史数据到数据库
+        
+        参数:
+            stock_code (str): 股票代码
+            stock_date (str): 股票日期 (格式: YYYY-MM-DD)
+            stock_price (float): 股票价格
+            stock_time (str): 股票精确时间 (格式: YYYY-MM-DD HH:MM:SS)，可选
+            table_name (str): 表名
+        """
+        try:
+            insert_sql = f"""
+            INSERT INTO `{table_name}` (stock_code, stock_date, stock_time, stock_price)
+            VALUES (%s, %s, %s, %s)
+            """
+            
+            self.cursor.execute(insert_sql, (stock_code, stock_date, stock_time, stock_price))
+            self.connection.commit()
+            logger.info(f"✅ 成功保存股票价格历史: {stock_code} 在 {stock_date} {stock_time or 'N/A'} 的价格为 {stock_price}")
+            return True
+        except pymysql.MySQLError as e:
+            logger.error(f"❌ 保存股票价格历史失败: {e}")
+            self.connection.rollback()
+            return False
+
+    def get_latest_price(self, stock_code, table_name="stock_price_history"):
+        """
+        获取指定股票的最新价格
+        
+        参数:
+            stock_code (str): 股票代码
+            table_name (str): 表名
+        """
+        try:
+            query_sql = f"""
+            SELECT stock_price, stock_date, fetch_date
+            FROM `{table_name}`
+            WHERE stock_code = %s
+            ORDER BY stock_date DESC, fetch_date DESC
+            LIMIT 1
+            """
+            
+            self.cursor.execute(query_sql, (stock_code,))
+            result = self.cursor.fetchone()
+            return result
+        except pymysql.MySQLError as e:
+            logger.error(f"❌ 查询股票最新价格失败: {e}")
+            return None
+
     def close(self):
         """关闭数据库连接"""
         if self.cursor:

@@ -27,3 +27,20 @@ CREATE TABLE `stock_concern` (
   UNIQUE KEY `uk_stock_code` (`stock_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='关注股票表';
 
+-- 
+-- 股票价格历史表
+-- 存储股票价格历史数据，包括股票代码、日期、价格和抓取时间
+-- 
+DROP TABLE IF EXISTS `stock_price_history`;
+CREATE TABLE `stock_price_history` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `stock_code` varchar(50) NOT NULL COMMENT '股票代码',
+  `stock_date` date NOT NULL COMMENT '股票日期',
+  `stock_time` datetime DEFAULT NULL COMMENT '股票精确时间（时分秒）',
+  `stock_price` decimal(10, 2) NOT NULL COMMENT '股票价格',
+  `fetch_date` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '抓取日期',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_stock_code_date` (`stock_code`, `stock_date`, `stock_time`),
+  INDEX `idx_stock_code` (`stock_code`),
+  INDEX `idx_stock_date` (`stock_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='股票价格历史表';
