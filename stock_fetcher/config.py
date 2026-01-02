@@ -44,6 +44,21 @@ class Settings:
     WECHAT_WORK_AGENT_ID: int = int(os.getenv("WECHAT_WORK_AGENT_ID", 0))
     # 接收通知的用户ID列表（用逗号分隔）
     WECHAT_WORK_NOTIFY_USERIDS: str = os.getenv("WECHAT_WORK_NOTIFY_USERIDS", "")
+    
+    # 邮件配置
+    EMAIL_SMTP_SERVER: str = os.getenv("EMAIL_SMTP_SERVER", "")
+    EMAIL_SMTP_PORT: int = int(os.getenv("EMAIL_SMTP_PORT", 587))
+    EMAIL_ADDRESS: str = os.getenv("EMAIL_ADDRESS", "")
+    EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
+    # 接收通知的邮箱地址（用逗号分隔）
+    EMAIL_RECIPIENTS: str = os.getenv("EMAIL_RECIPIENTS", "")
+    
+    @property
+    def EMAIL_RECIPIENTS_LIST(self):
+        """返回邮件接收者列表"""
+        if self.EMAIL_RECIPIENTS:
+            return [email.strip() for email in self.EMAIL_RECIPIENTS.split(',')]
+        return []
 
 
 settings = Settings()

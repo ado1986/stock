@@ -1,14 +1,44 @@
 import requests
 import json
 import logging
+import smtplib
 from datetime import datetime, timedelta
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from abc import ABC, abstractmethod
 from stock_fetcher.config import settings
 
 logger = logging.getLogger(__name__)
 
-class NotificationService:
+class NotificationInterface(ABC):
     """
-    通知服务类，使用企业微信应用消息API发送通知
+    通知接口，定义了所有通知器必须实现的方法
+    """
+    
+    @abstractmethod
+    def is_enabled(self):
+        """
+        检查通知是否已启用
+        """
+        pass
+    
+    @abstractmethod
+    def send_message(self, recipients, title, content, msg_type="text"):
+        """
+        发送消息
+        
+        Args:
+            recipients (str or list): 接收者
+            title (str): 消息标题
+            content (str): 消息内容
+            msg_type (str): 消息类型
+        """
+        pass
+
+
+class WeChatWorkNotification(NotificationInterface):
+    """
+    企业微信通知服务类
     """
     def __init__(self):
         # 从配置中获取企业微信相关参数
@@ -129,58 +159,164 @@ class NotificationService:
             logger.error(f"❌ 发送企业微信通知时发生异常: {e}")
             return False
 
-    def send_stock_alert(self, user_ids, stock_name, stock_code, current_price, alert_type, threshold):
+
+class EmailNotification(NotificationInterface):
+    """
+    邮件通知服务类
+    """
+    def __init__(self):
+        # 从配置中获取邮件相关参数
+        self.smtp_server = getattr(settings, 'EMAIL_SMTP_SERVER', '')
+        self.smtp_port = int(getattr(settings, 'EMAIL_SMTP_PORT', 587))
+        self.email_address = getattr(settings, 'EMAIL_ADDRESS', '')
+        self.email_password = getattr(settings, 'EMAIL_PASSWORD', '')
+        # 是否使用SSL连接
+        self.use_ssl = getattr(settings, 'EMAIL_USE_SSL', 'true').lower() == 'true'
+        
+    def is_enabled(self):
         """
-        发送股票价格提醒
+        检查是否配置了邮件通知
+        """
+        return all([
+            self.smtp_server,
+            self.email_address,
+            self.email_password
+        ])
+    
+    def send_message(self, recipients, title, content, msg_type="html"):
+        """
+        发送邮件通知
         
         Args:
-            user_ids (str or list): 接收消息的用户ID列表
-            stock_name (str): 股票名称
-            stock_code (str): 股票代码
-            current_price (float): 当前价格
-            alert_type (str): 提醒类型 ('low' 或 'high')
-            threshold (float): 阈值
+            recipients (str or list): 接收邮件的邮箱地址，可以是单个邮箱或邮箱列表
+            title (str): 邮件标题
+            content (str): 邮件内容
+            msg_type (str): 邮件类型，支持 'html', 'text'
         """
-        if alert_type == 'low':
-            title = f"📉 股价下跌提醒"
-            content = f"股票 {stock_name}({stock_code}) 价格已跌至 {current_price} 元，低于设定阈值 {threshold} 元"
-        elif alert_type == 'high':
-            title = f"📈 股价上涨提醒"
-            content = f"股票 {stock_name}({stock_code}) 价格已涨至 {current_price} 元，高于设定阈值 {threshold} 元"
-        else:
-            logger.error(f"❌ 无效的提醒类型: {alert_type}")
+        if not self.is_enabled():
+            logger.warning("⚠️ 未完整配置邮件参数，跳过发送邮件通知")
             return False
         
-        return self.send_message(user_ids, title, content, msg_type="text")
+        try:
+            # 处理收件人参数
+            if isinstance(recipients, list):
+                recipient_list = recipients
+                recipient_str = ', '.join(recipients)
+            else:
+                recipient_list = [recipients]
+                recipient_str = recipients
+            
+            # 创建邮件对象
+            msg = MIMEMultipart()
+            msg['From'] = self.email_address
+            msg['To'] = recipient_str
+            msg['Subject'] = title
+            
+            # 根据类型设置邮件内容
+            if msg_type == 'html':
+                msg.attach(MIMEText(content, 'html', 'utf-8'))
+            else:
+                msg.attach(MIMEText(content, 'plain', 'utf-8'))
+            
+            server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
+            server.login(self.email_address, self.email_password)
+            text = msg.as_string()
+            server.sendmail(self.email_address, recipient_list, text)
+            server.quit()
+            
+            logger.info(f"✅ 邮件通知发送成功: {title} -> {recipient_str}")
+            return True
+            
+        except smtplib.SMTPAuthenticationError:
+            logger.error(f"❌ 邮件认证失败，请检查邮箱地址和密码/授权码是否正确")
+            return False
+        except smtplib.SMTPRecipientsRefused:
+            logger.error(f"❌ 邮件接收者被拒绝，请检查接收者邮箱地址是否正确: {recipient_str}")
+            return False
+        except smtplib.SMTPServerDisconnected:
+            logger.error(f"❌ SMTP服务器连接意外断开，请检查网络连接或SMTP服务器设置")
+            return False
+        except smtplib.SMTPException as e:
+            logger.error(f"❌ SMTP错误: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"❌ 发送邮件通知时发生异常: {e}")
+            return False
 
-    def send_operation_notification(self, user_ids, operation, stock_name, stock_code):
+
+class NotificationManager:
+    """
+    通知管理器，统一管理各种通知方式
+    """
+    def __init__(self):
+        self.notifications = {
+            'wechat': WeChatWorkNotification(),
+            'email': EmailNotification()
+        }
+    
+    def send_message(self, title, content, msg_type="text", method='email'):
         """
-        发送操作通知
+        发送消息到指定的通知方式
         
         Args:
-            user_ids (str or list): 接收消息的用户ID列表
-            operation (str): 操作类型 ('add' 或 'delete')
-            stock_name (str): 股票名称
-            stock_code (str): 股票代码
+            title (str): 消息标题
+            content (str): 消息内容
+            msg_type (str): 消息类型，支持 'text', 'markdown', 'html'
+            method (str): 发送方式，支持 'email', 'wechat', 'all'
         """
-        if operation == 'add':
-            title = f"✅ 添加股票"
-            content = f"已成功添加股票 {stock_name}({stock_code}) 到监控列表"
-        elif operation == 'delete':
-            title = f"🗑️ 删除股票"
-            content = f"已从监控列表中删除股票 {stock_name}({stock_code})"
+        if method == 'email':
+            notification = self.notifications['email']
+            if notification.is_enabled():
+                recipients = settings.EMAIL_RECIPIENTS_LIST
+                if recipients:
+                    return notification.send_message(recipients, title, content, msg_type)
+                else:
+                    logger.warning("⚠️ 未配置邮件接收者")
+                    return False
+            else:
+                logger.warning("⚠️ 未完整配置邮件参数")
+                return False
+        elif method == 'wechat':
+            notification = self.notifications['wechat']
+            if notification.is_enabled():
+                recipients = getattr(settings, 'WECHAT_WORK_NOTIFY_USERIDS', '')
+                if recipients:
+                    # 将字符串转换为列表
+                    user_list = [uid.strip() for uid in recipients.split(',')]
+                    return notification.send_message(user_list, title, content, msg_type)
+                else:
+                    logger.warning("⚠️ 未配置企业微信接收者")
+                    return False
+            else:
+                logger.warning("⚠️ 未完整配置企业微信参数")
+                return False
+        elif method == 'all':
+            # 向所有启用的通知方式发送消息
+            results = []
+            for name, notification in self.notifications.items():
+                if notification.is_enabled():
+                    if name == 'email':
+                        recipients = settings.EMAIL_RECIPIENTS_LIST
+                        if recipients:
+                            results.append(notification.send_message(recipients, title, content, msg_type))
+                    elif name == 'wechat':
+                        recipients = getattr(settings, 'WECHAT_WORK_NOTIFY_USERIDS', '')
+                        if recipients:
+                            user_list = [uid.strip() for uid in recipients.split(',')]
+                            results.append(notification.send_message(user_list, title, content, msg_type))
+            
+            # 如果有任何一个通知发送成功，则返回True
+            return any(results)
         else:
-            logger.error(f"❌ 无效的操作类型: {operation}")
+            logger.error(f"❌ 未知的通知方式: {method}")
             return False
-        
-        return self.send_message(user_ids, title, content, msg_type="text")
 
 
-# 创建全局通知实例
-notification_service = NotificationService()
+# 创建全局通知管理器实例
+notification_manager = NotificationManager()
 
 def get_notification_service():
     """
     获取通知服务实例
     """
-    return notification_service
+    return notification_manager
