@@ -38,6 +38,13 @@ class Settings:
     # 数据源: 'gushitong' 或 'yfinance'
     DEFAULT_SOURCE: str = os.getenv("DEFAULT_SOURCE", "gushitong")
 
+    # 企业微信配置
+    WECHAT_WORK_CORP_ID: str = os.getenv("WECHAT_WORK_CORP_ID", "")
+    WECHAT_WORK_CORP_SECRET: str = os.getenv("WECHAT_WORK_CORP_SECRET", "")
+    WECHAT_WORK_AGENT_ID: int = int(os.getenv("WECHAT_WORK_AGENT_ID", 0))
+    # 接收通知的用户ID列表（用逗号分隔）
+    WECHAT_WORK_NOTIFY_USERIDS: str = os.getenv("WECHAT_WORK_NOTIFY_USERIDS", "")
+
 
 settings = Settings()
 
