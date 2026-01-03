@@ -27,8 +27,12 @@ class MySQLStorage:
 
         # 初始化连接池：兼容不同安装源的导入路径
         try:
-            # PyPI 上包名可能为小写 dbutils，模块路径为 dbutils.pooled_db
-            from dbutils.pooled_db import PooledDB
+            # 优先尝试常见的 DBUtils 导入路径（部分旧环境为大写 DBUtils）
+            try:
+                from DBUtils.PooledDB import PooledDB
+            except Exception:
+                # 退回到小写包名的导入路径
+                from dbutils.pooled_db import PooledDB
         except Exception:
             raise RuntimeError("请先安装 DBUtils：pip install DBUtils 或 pip install dbutils")
 
@@ -188,6 +192,98 @@ class MySQLStorage:
             except Exception:
                 pass
             logger.error(f"❌ 保存股票价格历史失败: {e}")
+            return False
+
+    def get_latest_price(self, stock_code):
+        """获取指定股票的最新价格记录，返回 dict 或 None"""
+        try:
+            query_sql = (
+                "SELECT stock_price, stock_time, stock_date, fetch_date "
+                "FROM `stock_price_history` WHERE stock_code = %s "
+                "ORDER BY COALESCE(stock_time, fetch_date) DESC LIMIT 1"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(query_sql, (stock_code,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            return row
+        except Exception as e:
+            logger.error(f"❌ 获取最新股票价格失败: {e}")
+            return None
+
+    def get_alert_state(self, concern_id, alert_type):
+        """获取指定关注项（concern_id）和告警类型（'low'/'high'）的当前状态"""
+        try:
+            query_sql = (
+                "SELECT id, concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at "
+                "FROM `stock_alert_state` WHERE concern_id = %s AND alert_type = %s"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(query_sql, (concern_id, alert_type))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            return row
+        except Exception as e:
+            logger.error(f"❌ 获取告警状态失败: {e}")
+            return None
+
+    def upsert_alert_state(self, concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at=None):
+        """插入或更新告警状态（根据 UNIQUE(concern_id, alert_type)）"""
+        try:
+            insert_sql = (
+                "INSERT INTO `stock_alert_state` (concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE threshold = VALUES(threshold), is_triggered = VALUES(is_triggered), last_triggered_at = VALUES(last_triggered_at), updated_at = CURRENT_TIMESTAMP"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(insert_sql, (concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            logger.info(f"✅ 成功 upsert 告警状态: concern_id={concern_id}, type={alert_type}, triggered={is_triggered}")
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            logger.error(f"❌ upsert 告警状态失败: {e}")
+            return False
+
+    def save_alert_history(self, concern_id, stock_code, alert_type, threshold, stock_price, notified=1, error_message=None):
+        """保存一次告警触发的历史记录"""
+        try:
+            insert_sql = (
+                "INSERT INTO `stock_alert_history` (concern_id, stock_code, alert_type, threshold, stock_price, notified, error_message) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(insert_sql, (concern_id, stock_code, alert_type, threshold, stock_price, notified, error_message))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            logger.info(f"✅ 成功保存告警历史: {stock_code} {alert_type} {stock_price}")
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            logger.error(f"❌ 保存告警历史失败: {e}")
             return False
 
     def close(self):

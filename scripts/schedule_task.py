@@ -29,6 +29,9 @@ def task():
         if storage.connect():
             result = storage.query_concern_stocks()
             logger.info(f"关注的股票列表：{result}")
+            # 初始化告警管理器（用于处理阈值判断、冷却与历史记录）
+            from apps.core.alerting import AlertManager
+            alert_manager = AlertManager(storage)
     except Exception as e:
         logger.error(f"❌ 程序执行异常: {e}")
         return
@@ -89,19 +92,11 @@ def task():
                     stock_time=stock_datetime_str
                 )
                 
-                # 检查是否需要发送通知
-                price_low = stock.get('price_low')
-                price_high = stock.get('price_high')
-                
-                title = f"股票价格提醒 - {stock_code}"
-                content = f"股票 {stock_code} 在 {stock_datetime_str} 的价格为 {price_numeric}"
-                
-                if price_low and price_numeric <= price_low:
-                    content += f"，低于预设值 {price_low}"
-                    send_notification(title, content)
-                elif price_high and price_numeric >= price_high:
-                    content += f"，高于预设值 {price_high}"
-                    send_notification(title, content)
+                # 委托给 AlertManager 处理告警（会处理冷却、历史记录与通知发送）
+                try:
+                    alert_manager.handle_stock_price_update(stock, price_numeric, stock_datetime_str)
+                except Exception as e:
+                    logger.error(f"告警处理失败: {e}")
                     
             except ValueError:
                 logger.warning(f"股票价格无法转换为数字: {price}")
