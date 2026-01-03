@@ -1,6 +1,5 @@
 import pymysql
 from pymysql.cursors import DictCursor
-import logging
 
 # 配置日志
 from config.logging_config import get_logger
@@ -26,11 +25,12 @@ class MySQLStorage:
         self.maxcached = int(maxcached)
         self.blocking = bool(blocking)
 
-        # 初始化连接池
+        # 初始化连接池：兼容不同安装源的导入路径
         try:
-            from DBUtils.PooledDB import PooledDB
+            # PyPI 上包名可能为小写 dbutils，模块路径为 dbutils.pooled_db
+            from dbutils.pooled_db import PooledDB
         except Exception:
-            raise RuntimeError("请先安装 DBUtils：pip install DBUtils")
+            raise RuntimeError("请先安装 DBUtils：pip install DBUtils 或 pip install dbutils")
 
         self.pool = PooledDB(
             creator=pymysql,
