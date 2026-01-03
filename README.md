@@ -25,9 +25,9 @@ cp .env.example .env
 # 编辑 .env 文件填写数据库连接信息
 ```
 
-**连接池配置（DBUtils）**
+**连接池配置（dbutils / DBUtils）**
 
-可在 `.env` 中设置连接池参数（用于 `DBUtils.PooledDB`）：
+可在 `.env` 中设置连接池参数（用于 `dbutils.pooled_db.PooledDB`，高版本优先）：
 
 ```
 MYSQL_POOL_MINCACHED=1

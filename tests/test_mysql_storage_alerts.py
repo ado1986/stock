@@ -20,12 +20,16 @@ def make_mock_conn_with_fetchone(fetchone_value=None):
 def inject_pooleddb(pool_instance):
     import sys
     from types import ModuleType
-    pooleddb_submodule = ModuleType("DBUtils.PooledDB")
+    pooleddb_submodule = ModuleType("dbutils.pooled_db")
     pooleddb_submodule.PooledDB = MagicMock(return_value=pool_instance)
+
+    dbutils_pkg = ModuleType("dbutils")
+    dbutils_pkg.pooled_db = pooleddb_submodule
+    sys.modules["dbutils"] = dbutils_pkg
+    sys.modules["dbutils.pooled_db"] = pooleddb_submodule
 
     dbutils_mod = ModuleType("DBUtils")
     dbutils_mod.PooledDB = pooleddb_submodule
-
     sys.modules["DBUtils"] = dbutils_mod
     sys.modules["DBUtils.PooledDB"] = pooleddb_submodule
 
