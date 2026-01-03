@@ -90,9 +90,27 @@ python main.py --api
 
 ### 启动定时任务
 
+抓取任务和告警任务已解耦，推荐分别调度：
+
+- 手动触发一次抓取（仅保存价格历史，不发送告警）：
+
+```
+python scripts/run_fetch.py
+```
+
+- 手动触发一次告警检查（基于已保存的价格历史）：
+
+```
+python scripts/run_alerts.py
+```
+
+- 如果希望一次性执行两者（开发/测试），你仍可运行：
+
 ```
 python main.py --schedule
 ```
+
+> 生产环境推荐分别调度（例如通过 cron、systemd timer 或外部调度工具），以便抓取与告警策略独立演进。
 
 ### 获取指定股票数据
 
