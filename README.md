@@ -82,6 +82,10 @@ python main.py --fetch AAPL
 python main.py --show-config
 ```
 
+## 项目约定 / 实践要点
+
+- Storage 实现细节：`MySQLStorage` 内部使用固定表名：`stock_concern`（关注股票表）与 `stock_price_history`（价格历史表）。不要通过方法参数传入表名；方法签名已移除 `table_name` 参数以避免不一致。
+
 ## 项目结构
 
 ```

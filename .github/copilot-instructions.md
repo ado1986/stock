@@ -77,6 +77,7 @@ PY
 - 配置集中在 `config/settings.py`，通过 `from config.settings import settings` 获取配置。
 - 数据源由 `DEFAULT_SOURCE` 决定（`gushitong` 或 `yfinance`），`fetch_stock()` 会依据此字段分流。
 - Storage API 保持简单：方法通常返回 True/False（或在查询时返回列表/空列表），尽量不要依赖抛异常做流程控制。
+  - 注意：表名**不再**作为方法参数传入（例如之前的 `table_name` 参数已移除），`MySQLStorage` 在内部使用固定表名：`stock_concern`（关注股票表）和 `stock_price_history`（价格历史表）。
 - 连接管理：已改为使用 `DBUtils.PooledDB` 实现连接池（配置变量在 `.env` 中：`MYSQL_POOL_MINCACHED` / `MYSQL_POOL_MAXCACHED` / `MYSQL_POOL_BLOCKING`）。
   - 代码位置：`apps/core/storage/mysql_storage.py`（短连接模式：每个操作获取 conn/cursor，操作后 `cur.close()` / `conn.close()`）。
 - 日志：统一通过 `config/logging_config.py` 配置；代码应使用 `logging.getLogger(__name__)`。
