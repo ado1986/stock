@@ -33,7 +33,7 @@ class Settings:
     MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD", "")
     MYSQL_DB: str = os.getenv("MYSQL_DB", "stock_db")
 
-    # MySQL 连接池（dbutils/DBUtils）配置（优先使用 dbutils.pooled_db.PooledDB）
+    # MySQL 连接池（dbutils）配置（使用 dbutils.pooled_db.PooledDB）
     MYSQL_POOL_MINCACHED: int = int(os.getenv("MYSQL_POOL_MINCACHED", "1"))
     MYSQL_POOL_MAXCACHED: int = int(os.getenv("MYSQL_POOL_MAXCACHED", "5"))
     MYSQL_POOL_BLOCKING: bool = os.getenv("MYSQL_POOL_BLOCKING", "true").lower() == "true"

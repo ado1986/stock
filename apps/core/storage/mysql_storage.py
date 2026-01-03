@@ -25,14 +25,11 @@ class MySQLStorage:
         self.maxcached = int(maxcached)
         self.blocking = bool(blocking)
 
-        # 初始化连接池：优先使用高版本导入路径 `dbutils.pooled_db.PooledDB`，旧版仍兼容 `DBUtils.PooledDB`
+        # 初始化连接池：使用 `dbutils.pooled_db.PooledDB`（不再支持旧版 `DBUtils`）
         try:
             from dbutils.pooled_db import PooledDB
         except Exception:
-            try:
-                from DBUtils.PooledDB import PooledDB
-            except Exception:
-                raise RuntimeError("请先安装 DBUtils：pip install DBUtils 或 pip install dbutils")
+            raise RuntimeError("请先安装包 `dbutils`：pip install dbutils")
 
         self.pool = PooledDB(
             creator=pymysql,

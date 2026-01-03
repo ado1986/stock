@@ -28,11 +28,6 @@ def inject_pooleddb(pool_instance):
     sys.modules["dbutils"] = dbutils_pkg
     sys.modules["dbutils.pooled_db"] = pooleddb_submodule
 
-    dbutils_mod = ModuleType("DBUtils")
-    dbutils_mod.PooledDB = pooleddb_submodule
-    sys.modules["DBUtils"] = dbutils_mod
-    sys.modules["DBUtils.PooledDB"] = pooleddb_submodule
-
 
 def test_get_latest_price():
     row = {"stock_price": 123.45, "stock_time": "2026-01-03 12:00:00"}
