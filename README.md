@@ -25,6 +25,31 @@ cp .env.example .env
 # 编辑 .env 文件填写数据库连接信息
 ```
 
+**连接池配置（DBUtils）**
+
+可在 `.env` 中设置连接池参数（用于 `DBUtils.PooledDB`）：
+
+```
+MYSQL_POOL_MINCACHED=1
+MYSQL_POOL_MAXCACHED=5
+MYSQL_POOL_BLOCKING=true
+```
+
+**初始化数据库**
+
+项目包含数据库模式文件 `data/database_schema.sql`，你可以使用项目脚本自动执行：
+
+```
+python scripts/init_db.py
+```
+
+或者手动通过 MySQL 客户端导入：
+
+```
+mysql -u <user> -p < data/database_schema.sql
+```
+
+
 ## 使用方法
 
 ### 直接运行（启动Web应用）

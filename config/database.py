@@ -3,7 +3,6 @@
 统一管理数据库相关配置
 """
 from .settings import settings
-from apps.core.storage.mysql_storage import MySQLStorage
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,34 +20,50 @@ class DatabaseManager:
         return cls._instance
     
     def __init__(self):
-        # 防止重复初始化
+        # 延迟初始化 storage，避免导入时出现副作用（例如缺少 DBUtils）
+        pass
+
+    def get_storage(self):
+        """
+        获取数据库存储实例，惰性创建连接池实例
+        """
         if self._storage is None:
+            # 延迟导入以减少导入时依赖
+            from apps.core.storage.mysql_storage import MySQLStorage
+
             self._storage = MySQLStorage(
                 host=settings.MYSQL_HOST,
                 port=settings.MYSQL_PORT,
                 user=settings.MYSQL_USER,
                 password=settings.MYSQL_PASSWORD,
-                database=settings.MYSQL_DB
+                database=settings.MYSQL_DB,
+                mincached=settings.MYSQL_POOL_MINCACHED,
+                maxcached=settings.MYSQL_POOL_MAXCACHED,
+                blocking=settings.MYSQL_POOL_BLOCKING
             )
-    
-    def get_storage(self):
-        """
-        获取数据库存储实例
-        """
+
         return self._storage
     
     def connect(self):
         """
-        连接数据库
+        连接数据库（通过惰性获取的 storage）
         """
-        return self._storage.connect()
-    
+        try:
+            storage = self.get_storage()
+            return storage.connect()
+        except Exception as e:
+            logger.error(f"❌ 连接数据库失败: {e}")
+            return False
+
     def close(self):
         """
         关闭数据库连接
         """
-        if self._storage:
-            self._storage.close()
+        try:
+            if self._storage:
+                self._storage.close()
+        except Exception as e:
+            logger.error(f"关闭数据库时出错: {e}")
 
 # 全局数据库管理实例
 db_manager = DatabaseManager()

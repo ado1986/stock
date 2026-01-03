@@ -2,6 +2,7 @@ requests
 beautifulsoup4
 pymysql
 python-dotenv
+DBUtils
 yfinance
 selenium
 webdriver-manager

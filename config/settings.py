@@ -33,6 +33,11 @@ class Settings:
     MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD", "")
     MYSQL_DB: str = os.getenv("MYSQL_DB", "stock_db")
 
+    # MySQL 连接池（DBUtils）配置
+    MYSQL_POOL_MINCACHED: int = int(os.getenv("MYSQL_POOL_MINCACHED", "1"))
+    MYSQL_POOL_MAXCACHED: int = int(os.getenv("MYSQL_POOL_MAXCACHED", "5"))
+    MYSQL_POOL_BLOCKING: bool = os.getenv("MYSQL_POOL_BLOCKING", "true").lower() == "true"
+
     # 网络请求
     REQUEST_TIMEOUT: float = float(os.getenv("REQUEST_TIMEOUT", "10"))
 
