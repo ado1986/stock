@@ -60,10 +60,10 @@ class MySQLStorage:
             logger.error(f"❌ 获取连接失败: {e}")
             return False
 
-    def query_concern_stocks(self, table_name="stock_concern"):
-        """查询关注的股票信息，返回列表（字段与表结构保持一致）"""
+    def query_concern_stocks(self):
+        """查询关注的股票信息（固定表 `stock_concern`），返回列表（字段与表结构保持一致）"""
         try:
-            query_sql = f"SELECT id, stockname, stock_code, stock_url, price_low, price_high FROM `{table_name}` WHERE state = 1"
+            query_sql = "SELECT id, stockname, stock_code, stock_url, price_low, price_high FROM `stock_concern` WHERE state = 1"
 
             conn = self.pool.connection()
             cur = conn.cursor()
@@ -78,9 +78,9 @@ class MySQLStorage:
             logger.error(f"❌ 查询关注的股票信息失败: {e}")
             return []
 
-    def add_concern_stock(self, stockname, stock_code, stock_url, price_low=None, price_high=None, table_name="stock_concern"):
+    def add_concern_stock(self, stockname, stock_code, stock_url, price_low=None, price_high=None):
         try:
-            insert_sql = f"INSERT INTO `{table_name}` (stockname, stock_code, stock_url, price_low, price_high) VALUES (%s, %s, %s, %s, %s)"
+            insert_sql = "INSERT INTO `stock_concern` (stockname, stock_code, stock_url, price_low, price_high) VALUES (%s, %s, %s, %s, %s)"
 
             conn = self.pool.connection()
             cur = conn.cursor()
@@ -99,7 +99,7 @@ class MySQLStorage:
             logger.error(f"❌ 添加关注股票失败: {e}")
             return False
 
-    def update_concern_stock(self, id, stockname=None, stock_code=None, stock_url=None, price_low=None, price_high=None, state=None, table_name="stock_concern"):
+    def update_concern_stock(self, id, stockname=None, stock_code=None, stock_url=None, price_low=None, price_high=None, state=None):
         try:
             updates = []
             params = []
@@ -129,7 +129,7 @@ class MySQLStorage:
 
             params.append(id)
 
-            update_sql = f"UPDATE `{table_name}` SET " + ", ".join(updates) + " WHERE id = %s"
+            update_sql = "UPDATE `stock_concern` SET " + ", ".join(updates) + " WHERE id = %s"
 
             conn = self.pool.connection()
             cur = conn.cursor()
@@ -148,9 +148,9 @@ class MySQLStorage:
             logger.error(f"❌ 更新关注股票失败: {e}")
             return False
 
-    def delete_concern_stock(self, id, table_name="stock_concern"):
+    def delete_concern_stock(self, id):
         try:
-            update_sql = f"UPDATE `{table_name}` SET state = 0 WHERE id = %s"
+            update_sql = "UPDATE `stock_concern` SET state = 0 WHERE id = %s"
 
             conn = self.pool.connection()
             cur = conn.cursor()
@@ -169,9 +169,9 @@ class MySQLStorage:
             logger.error(f"❌ 删除关注股票失败: {e}")
             return False
 
-    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None, table_name="stock_price_history"):
+    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None):
         try:
-            insert_sql = f"INSERT INTO `{table_name}` (stock_code, stock_date, stock_time, stock_price) VALUES (%s, %s, %s, %s)"
+            insert_sql = "INSERT INTO `stock_price_history` (stock_code, stock_date, stock_time, stock_price) VALUES (%s, %s, %s, %s)"
 
             conn = self.pool.connection()
             cur = conn.cursor()
