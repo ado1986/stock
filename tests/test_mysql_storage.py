@@ -22,16 +22,14 @@ def make_mock_conn(return_rows=None):
 
 
 def inject_pooleddb(pool_instance):
-    """在 sys.modules 中注入一个假的 DBUtils.PooledDB 模块"""
-    pooleddb_submodule = ModuleType("DBUtils.PooledDB")
+    """在 sys.modules 中注入一个假的 dbutils.pooled_db.PooledDB 模块（仅支持高版本）"""
+    pooleddb_submodule = ModuleType("dbutils.pooled_db")
     pooleddb_submodule.PooledDB = MagicMock(return_value=pool_instance)
 
-    # 注册为 DBUtils 和 DBUtils.PooledDB
-    dbutils_mod = ModuleType("DBUtils")
-    dbutils_mod.PooledDB = pooleddb_submodule
-
-    sys.modules["DBUtils"] = dbutils_mod
-    sys.modules["DBUtils.PooledDB"] = pooleddb_submodule
+    dbutils_pkg = ModuleType("dbutils")
+    dbutils_pkg.pooled_db = pooleddb_submodule
+    sys.modules["dbutils"] = dbutils_pkg
+    sys.modules["dbutils.pooled_db"] = pooleddb_submodule
 
 
 def test_connect_success():
