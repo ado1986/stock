@@ -14,7 +14,7 @@ def test_fetch_task_only_fetches_and_saves():
     storage.query_concern_stocks.return_value = [{"id": 1, "stock_code": "AAPL", "stock_url": "http://example.com"}]
 
     with patch('config.database.get_db_storage', return_value=storage):
-        with patch('apps.core.stock.fetcher.fetch_stock_price', return_value={"price": "95.5", "time": "2026-01-03 12:00:00", "pe_ttm": 12.34, "pb": 1.23, "roe": 5.67}):
+        with patch('apps.core.stock.fetcher.fetch_stock', return_value={"price": "95.5", "time": "2026-01-03 12:00:00", "pe_ttm": 12.34, "pb": 1.23, "roe": 5.67}):
             schedule_task = reload_schedule_task()
             schedule_task.fetch_task()
 

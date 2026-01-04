@@ -12,8 +12,7 @@ from bs4 import BeautifulSoup
 import logging
 from typing import Optional, Dict
 
-# 导入yfinance版本的实现
-from .yfinance_fetcher import fetch_stock_yfinance
+
 
 # 导入日志配置
 from config.logging_config import get_logger
@@ -101,36 +100,13 @@ def fetch_stock_by_element_selector(stock_path_code: str, element_selector: str)
     html_content = get_element_without_full_load(url, element_selector)
     return html_content
 
-def fetch_stock(stock_path_code: str, source: Optional[str] = None):
-    """抓取股票盘口数据"""
-    from config.settings import settings
-    # 使用配置中指定的默认数据源，除非明确指定
-    if source is None:
-        source = settings.DEFAULT_SOURCE
-    
-    if source == 'yfinance':
-        # 使用yfinance获取数据
-        return fetch_stock_yfinance(stock_path_code)
-    else:
-        # 使用爬虫方式获取数据
-        path_code = stock_path_code.lower().replace('.', '-')
-        html_content = fetch_stock_by_element_selector(path_code, "div.pankou-fold-box")
-        if html_content:
-            data = parse_html(html_content)
-            return data
-        else:
-            return None
-
 def _extract_number(value: str):
     """从字符串中提取数字，支持带‘%’或中文单位的字符串，返回 float 或 None。"""
     if value is None:
         return None
     try:
-        # 去掉中文、单位、倍、等非数字符号，仅保留数字、点和负号与百分号
         v = value.replace('\u200b', '').strip()
-        # 如果包含%，保留百分号以便后续处理
         is_percent = '%' in v
-        # 去掉中文和单位标识（例如：倍）以及逗号
         import re
         cleaned = re.sub(r"[^0-9.%\-]", "", v)
         if cleaned == '' or cleaned == '.' or cleaned == '-' or cleaned == '%':
@@ -142,28 +118,23 @@ def _extract_number(value: str):
     except Exception:
         return None
 
-
-def fetch_stock_price(stock_path_code: str):
-    """抓取指定股票的当日价格，同时尝试抓取 PE / PB / ROE 等关键指标"""
-    element_selector = "div.trading-info-box"
-    html_content = fetch_stock_by_element_selector(stock_path_code, element_selector)
-
+def fetch_stock(stock_path_code: str):
+    """抓取股票信息：价格、时间、PE(TTM)、PB，并基于 PE 和 PB 计算 ROE（百分比，保留两位）"""
     price_data = {}
 
-    if html_content:
-        # 创建BeautifulSoup解析对象
-        soup = BeautifulSoup(html_content, 'lxml')  # 使用lxml解析器
+    # 获取交易信息（价格与时间）
+    trading_html = fetch_stock_by_element_selector(stock_path_code, "div.trading-info-box")
+    if trading_html:
+        soup = BeautifulSoup(trading_html, 'lxml')
         price_div = soup.find('div', class_='price')
         if price_div:
-            price = price_div.get_text(strip=True)
-            price_data['price'] = price
+            price_data['price'] = price_div.get_text(strip=True)
         time_div = soup.find('div', class_='time-text')
-        #处理时间字符串
         if time_div:
             time_text = time_div.get_text(strip=True)
             price_data['time'] = parse_time_string(time_text)
 
-    # 额外抓取盘口中 PE / PB / ROE 指标（有时在不同区域）
+    # 获取盘口信息（PE / PB）
     try:
         pankou_html = fetch_stock_by_element_selector(stock_path_code, "div.pankou-fold-box")
         if pankou_html:
@@ -171,27 +142,24 @@ def fetch_stock_price(stock_path_code: str):
             # 常见键名匹配
             pe_candidates = [k for k in pankou.keys() if '市盈' in k]
             pb_candidates = [k for k in pankou.keys() if '市净' in k]
-            roe_candidates = [k for k in pankou.keys() if '净资产收益率' in k or 'ROE' in k or '净利率' in k]
 
             pe_val = None
             pb_val = None
-            roe_val = None
 
             if pe_candidates:
                 pe_val = _extract_number(pankou.get(pe_candidates[0]))
             if pb_candidates:
                 pb_val = _extract_number(pankou.get(pb_candidates[0]))
-            if roe_candidates:
-                roe_val = _extract_number(pankou.get(roe_candidates[0]))
 
             # 格式化为保留两位小数
             if pe_val is not None:
                 price_data['pe_ttm'] = round(pe_val, 2)
             if pb_val is not None:
                 price_data['pb'] = round(pb_val, 2)
-            if roe_val is not None:
-                # ROE 按百分数的分子部分存储，例如 '12.34%' -> 12.34
-                price_data['roe'] = round(roe_val, 2)
+
+            # 通过 PB / PE 计算 ROE（百分数），例如 PB/PE * 100
+            if pe_val is not None and pe_val != 0 and pb_val is not None:
+                price_data['roe'] = round((pb_val / pe_val) * 100.0, 2)
 
     except Exception as e:
         logger.warning(f"解析盘口指标失败: {e}")

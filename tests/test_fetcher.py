@@ -1,4 +1,4 @@
-from apps.core.stock.fetcher import _extract_number, fetch_stock_price
+from apps.core.stock.fetcher import _extract_number, fetch_stock
 from unittest.mock import patch
 
 
@@ -9,13 +9,12 @@ def test_extract_number_percent_and_units():
     assert _extract_number("约 3.5%") == 3.5
 
 
-def test_fetch_stock_price_parses_pe_pb_roe():
+def test_fetch_stock_parses_pe_pb_and_computes_roe():
     # 构造 trading-info-box HTML 和 pankou-fold-box HTML
     trading_html = "<div class='price'>95.5</div><div class='time-text'>2026-01-03 12:00:00</div>"
     pankou_html = (
         "<div class='pankou-item'><div class='key'>市盈率(TTM)</div><div class='value'>12.3456</div></div>"
         "<div class='pankou-item'><div class='key'>市净率</div><div class='value'>1.234</div></div>"
-        "<div class='pankou-item'><div class='key'>净资产收益率(ROE)</div><div class='value'>5.678%</div></div>"
     )
 
     # 当按 selector 不同返回不同 html
@@ -27,9 +26,11 @@ def test_fetch_stock_price_parses_pe_pb_roe():
         return None
 
     with patch('apps.core.stock.fetcher.fetch_stock_by_element_selector', side_effect=fake_fetch):
-        res = fetch_stock_price('AAPL')
+        res = fetch_stock('AAPL')
         assert res['price'] == '95.5'
         assert res['time'] == '2026-01-03 12:00:00'
         assert res['pe_ttm'] == 12.35  # rounded to two decimals
         assert res['pb'] == 1.23
-        assert res['roe'] == 5.68  # percentage number rounded
+        # ROE = PB / PE * 100
+        expected_roe = round((1.234 / 12.3456) * 100, 2)
+        assert res['roe'] == expected_roe

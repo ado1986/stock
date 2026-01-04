@@ -9,7 +9,7 @@ import logging
 
 from config.logging_config import setup_logging
 from config.database import get_db_storage, init_database
-from apps.core.stock.fetcher import fetch_stock_price
+from apps.core.stock.fetcher import fetch_stock
 
 
 setup_logging()
@@ -42,7 +42,7 @@ def fetch_task():
             continue
 
         try:
-            data_price = fetch_stock_price(stock_url)
+            data_price = fetch_stock(stock_url)
             logger.info(f"股票价格数据: {data_price}")
         except Exception as e:
             logger.error(f"获取股票价格失败 {stock_url}: {e}")
