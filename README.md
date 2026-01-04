@@ -25,9 +25,9 @@ cp .env.example .env
 # 编辑 .env 文件填写数据库连接信息
 ```
 
-**连接池配置（DBUtils）**
+**连接池配置（dbutils）**
 
-可在 `.env` 中设置连接池参数（用于 `DBUtils.PooledDB`）：
+可在 `.env` 中设置连接池参数（用于 `dbutils.pooled_db.PooledDB`）：
 
 ```
 MYSQL_POOL_MINCACHED=1
@@ -49,6 +49,30 @@ python scripts/init_db.py
 mysql -u <user> -p < data/database_schema.sql
 ```
 
+**告警（Alerting）**
+
+本项目支持基于关注股票（`stock_concern`）中的阈值 (`price_low` / `price_high`) 做阈值告警，告警逻辑包括冷却（cooldown）与历史记录：
+
+- 数据库迁移文件：`data/migrations/20260103_add_alert_tables.sql`（包含 `stock_alert_state` 与 `stock_alert_history` 表），请在生产或测试数据库上手动执行该 SQL：
+
+```
+mysql -u <user> -p < data/migrations/20260103_add_alert_tables.sql
+```
+
+- 配置项（可在 `.env` 中设置）：
+  - `ALERT_ENABLED`（默认为 `true`）
+  - `ALERT_COOLDOWN_MINUTES`（默认为 `60`，单位：分钟）
+
+- 手动触发告警检查脚本：`scripts/run_alerts.py`（在完成数据库迁移并有已有价格历史时可运行）：
+
+```
+python scripts/run_alerts.py
+```
+
+- 调度：定时任务会在抓取价格后通过 `AlertManager` 自动判断并发送告警（使用已配置的邮件 / 企业微信通知器）。
+
+请确保已经正确配置邮件或企业微信的发送参数（`EMAIL_*` 或 `WECHAT_*`）。
+
 
 ## 使用方法
 
@@ -66,9 +90,27 @@ python main.py --api
 
 ### 启动定时任务
 
+抓取任务和告警任务已解耦，推荐分别调度：
+
+- 手动触发一次抓取（仅保存价格历史，不发送告警）：
+
+```
+python scripts/run_fetch.py
+```
+
+- 手动触发一次告警检查（基于已保存的价格历史）：
+
+```
+python scripts/run_alerts.py
+```
+
+- 如果希望一次性执行两者（开发/测试），你仍可运行：
+
 ```
 python main.py --schedule
 ```
+
+> 生产环境推荐分别调度（例如通过 cron、systemd timer 或外部调度工具），以便抓取与告警策略独立演进。
 
 ### 获取指定股票数据
 

@@ -22,16 +22,14 @@ def make_mock_conn(return_rows=None):
 
 
 def inject_pooleddb(pool_instance):
-    """在 sys.modules 中注入一个假的 DBUtils.PooledDB 模块"""
-    pooleddb_submodule = ModuleType("DBUtils.PooledDB")
+    """在 sys.modules 中注入一个假的 dbutils.pooled_db.PooledDB 模块（仅支持高版本）"""
+    pooleddb_submodule = ModuleType("dbutils.pooled_db")
     pooleddb_submodule.PooledDB = MagicMock(return_value=pool_instance)
 
-    # 注册为 DBUtils 和 DBUtils.PooledDB
-    dbutils_mod = ModuleType("DBUtils")
-    dbutils_mod.PooledDB = pooleddb_submodule
-
-    sys.modules["DBUtils"] = dbutils_mod
-    sys.modules["DBUtils.PooledDB"] = pooleddb_submodule
+    dbutils_pkg = ModuleType("dbutils")
+    dbutils_pkg.pooled_db = pooleddb_submodule
+    sys.modules["dbutils"] = dbutils_pkg
+    sys.modules["dbutils.pooled_db"] = pooleddb_submodule
 
 
 def test_connect_success():
@@ -97,3 +95,32 @@ def test_close_clears_pool():
     assert storage.pool is not None
     storage.close()
     assert storage.pool is None
+
+
+def test_save_stock_price_history_with_metrics():
+    conn = make_mock_conn()
+    cur = conn.cursor.return_value
+
+    pool_instance = MagicMock()
+    pool_instance.connection.return_value = conn
+
+    inject_pooleddb(pool_instance)
+
+    storage = MySQLStorage("host", 3306, "user", "pass", "db")
+
+    ok = storage.save_stock_price_history(
+        "AAPL",
+        "2026-01-03",
+        95.5,
+        "2026-01-03 12:00:00",
+        pe_ttm=12.34,
+        pb=1.23,
+        roe=5.67
+    )
+    assert ok is True
+
+    # 校验执行的 SQL 包含新增列并且参数顺序与传入一致
+    cur.execute.assert_called_once()
+    sql, params = cur.execute.call_args[0]
+    assert 'pe_ttm' in sql and 'pb' in sql and 'roe' in sql
+    assert params == ("AAPL", "2026-01-03", "2026-01-03 12:00:00", 95.5, 12.34, 1.23, 5.67)

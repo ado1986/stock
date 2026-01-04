@@ -33,7 +33,7 @@ class Settings:
     MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD", "")
     MYSQL_DB: str = os.getenv("MYSQL_DB", "stock_db")
 
-    # MySQL 连接池（DBUtils）配置
+    # MySQL 连接池（dbutils）配置（使用 dbutils.pooled_db.PooledDB）
     MYSQL_POOL_MINCACHED: int = int(os.getenv("MYSQL_POOL_MINCACHED", "1"))
     MYSQL_POOL_MAXCACHED: int = int(os.getenv("MYSQL_POOL_MAXCACHED", "5"))
     MYSQL_POOL_BLOCKING: bool = os.getenv("MYSQL_POOL_BLOCKING", "true").lower() == "true"
@@ -60,6 +60,10 @@ class Settings:
     EMAIL_SKIP_SSL_VERIFICATION: str = os.getenv("EMAIL_SKIP_SSL_VERIFICATION", "false")
     # 接收通知的邮箱地址（用逗号分隔）
     EMAIL_RECIPIENTS: str = os.getenv("EMAIL_RECIPIENTS", "")
+
+    # 告警（Alert）相关配置
+    ALERT_ENABLED: bool = os.getenv("ALERT_ENABLED", "true").lower() == "true"
+    ALERT_COOLDOWN_MINUTES: int = int(os.getenv("ALERT_COOLDOWN_MINUTES", "60"))
     
     @property
     def EMAIL_RECIPIENTS_LIST(self):

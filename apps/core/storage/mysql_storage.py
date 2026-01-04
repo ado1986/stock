@@ -25,12 +25,11 @@ class MySQLStorage:
         self.maxcached = int(maxcached)
         self.blocking = bool(blocking)
 
-        # 初始化连接池：兼容不同安装源的导入路径
+        # 初始化连接池：使用 `dbutils.pooled_db.PooledDB`（不再支持旧版 `DBUtils`）
         try:
-            # PyPI 上包名可能为小写 dbutils，模块路径为 dbutils.pooled_db
             from dbutils.pooled_db import PooledDB
         except Exception:
-            raise RuntimeError("请先安装 DBUtils：pip install DBUtils 或 pip install dbutils")
+            raise RuntimeError("请先安装包 `dbutils`：pip install dbutils")
 
         self.pool = PooledDB(
             creator=pymysql,
@@ -169,18 +168,31 @@ class MySQLStorage:
             logger.error(f"❌ 删除关注股票失败: {e}")
             return False
 
-    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None):
+    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None, pe_ttm=None, pb=None, roe=None):
+        """保存股票价格历史，同时可选保存市盈率、市净率与净资产收益率（ROE）。
+
+        参数：
+            pe_ttm (float|None): 市盈率（TTM），保留两位小数
+            pb (float|None): 市净率，保留两位小数
+            roe (float|None): 净资产收益率（百分比），例如 12.34 表示 12.34%
+        """
         try:
-            insert_sql = "INSERT INTO `stock_price_history` (stock_code, stock_date, stock_time, stock_price) VALUES (%s, %s, %s, %s)"
+            insert_sql = (
+                "INSERT INTO `stock_price_history` "
+                "(stock_code, stock_date, stock_time, stock_price, pe_ttm, pb, roe) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            )
 
             conn = self.pool.connection()
             cur = conn.cursor()
-            cur.execute(insert_sql, (stock_code, stock_date, stock_time, stock_price))
+            cur.execute(insert_sql, (stock_code, stock_date, stock_time, stock_price, pe_ttm, pb, roe))
             conn.commit()
             cur.close()
             conn.close()
 
-            logger.info(f"✅ 成功保存股票价格历史: {stock_code} 在 {stock_date} {stock_time or 'N/A'} 的价格为 {stock_price}")
+            logger.info(
+                f"✅ 成功保存股票价格历史: {stock_code} 在 {stock_date} {stock_time or 'N/A'} 的价格为 {stock_price}，PE={pe_ttm}，PB={pb}，ROE={roe}"
+            )
             return True
         except Exception as e:
             try:
@@ -188,6 +200,98 @@ class MySQLStorage:
             except Exception:
                 pass
             logger.error(f"❌ 保存股票价格历史失败: {e}")
+            return False
+
+    def get_latest_price(self, stock_code):
+        """获取指定股票的最新价格记录，返回 dict 或 None"""
+        try:
+            query_sql = (
+                "SELECT stock_price, stock_time, stock_date, fetch_date, pe_ttm, pb, roe "
+                "FROM `stock_price_history` WHERE stock_code = %s "
+                "ORDER BY COALESCE(stock_time, fetch_date) DESC LIMIT 1"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(query_sql, (stock_code,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            return row
+        except Exception as e:
+            logger.error(f"❌ 获取最新股票价格失败: {e}")
+            return None
+
+    def get_alert_state(self, concern_id, alert_type):
+        """获取指定关注项（concern_id）和告警类型（'low'/'high'）的当前状态"""
+        try:
+            query_sql = (
+                "SELECT id, concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at "
+                "FROM `stock_alert_state` WHERE concern_id = %s AND alert_type = %s"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(query_sql, (concern_id, alert_type))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            return row
+        except Exception as e:
+            logger.error(f"❌ 获取告警状态失败: {e}")
+            return None
+
+    def upsert_alert_state(self, concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at=None):
+        """插入或更新告警状态（根据 UNIQUE(concern_id, alert_type)）"""
+        try:
+            insert_sql = (
+                "INSERT INTO `stock_alert_state` (concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE threshold = VALUES(threshold), is_triggered = VALUES(is_triggered), last_triggered_at = VALUES(last_triggered_at), updated_at = CURRENT_TIMESTAMP"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(insert_sql, (concern_id, stock_code, alert_type, threshold, is_triggered, last_triggered_at))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            logger.info(f"✅ 成功 upsert 告警状态: concern_id={concern_id}, type={alert_type}, triggered={is_triggered}")
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            logger.error(f"❌ upsert 告警状态失败: {e}")
+            return False
+
+    def save_alert_history(self, concern_id, stock_code, alert_type, threshold, stock_price, notified=1, error_message=None):
+        """保存一次告警触发的历史记录"""
+        try:
+            insert_sql = (
+                "INSERT INTO `stock_alert_history` (concern_id, stock_code, alert_type, threshold, stock_price, notified, error_message) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            )
+
+            conn = self.pool.connection()
+            cur = conn.cursor()
+            cur.execute(insert_sql, (concern_id, stock_code, alert_type, threshold, stock_price, notified, error_message))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            logger.info(f"✅ 成功保存告警历史: {stock_code} {alert_type} {stock_price}")
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            logger.error(f"❌ 保存告警历史失败: {e}")
             return False
 
     def close(self):
