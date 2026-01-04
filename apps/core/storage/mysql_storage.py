@@ -168,18 +168,31 @@ class MySQLStorage:
             logger.error(f"❌ 删除关注股票失败: {e}")
             return False
 
-    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None):
+    def save_stock_price_history(self, stock_code, stock_date, stock_price, stock_time=None, pe_ttm=None, pb=None, roe=None):
+        """保存股票价格历史，同时可选保存市盈率、市净率与净资产收益率（ROE）。
+
+        参数：
+            pe_ttm (float|None): 市盈率（TTM），保留两位小数
+            pb (float|None): 市净率，保留两位小数
+            roe (float|None): 净资产收益率（百分比），例如 12.34 表示 12.34%
+        """
         try:
-            insert_sql = "INSERT INTO `stock_price_history` (stock_code, stock_date, stock_time, stock_price) VALUES (%s, %s, %s, %s)"
+            insert_sql = (
+                "INSERT INTO `stock_price_history` "
+                "(stock_code, stock_date, stock_time, stock_price, pe_ttm, pb, roe) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            )
 
             conn = self.pool.connection()
             cur = conn.cursor()
-            cur.execute(insert_sql, (stock_code, stock_date, stock_time, stock_price))
+            cur.execute(insert_sql, (stock_code, stock_date, stock_time, stock_price, pe_ttm, pb, roe))
             conn.commit()
             cur.close()
             conn.close()
 
-            logger.info(f"✅ 成功保存股票价格历史: {stock_code} 在 {stock_date} {stock_time or 'N/A'} 的价格为 {stock_price}")
+            logger.info(
+                f"✅ 成功保存股票价格历史: {stock_code} 在 {stock_date} {stock_time or 'N/A'} 的价格为 {stock_price}，PE={pe_ttm}，PB={pb}，ROE={roe}"
+            )
             return True
         except Exception as e:
             try:
@@ -193,7 +206,7 @@ class MySQLStorage:
         """获取指定股票的最新价格记录，返回 dict 或 None"""
         try:
             query_sql = (
-                "SELECT stock_price, stock_time, stock_date, fetch_date "
+                "SELECT stock_price, stock_time, stock_date, fetch_date, pe_ttm, pb, roe "
                 "FROM `stock_price_history` WHERE stock_code = %s "
                 "ORDER BY COALESCE(stock_time, fetch_date) DESC LIMIT 1"
             )

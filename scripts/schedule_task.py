@@ -48,12 +48,23 @@ def fetch_task():
             logger.error(f"获取股票价格失败 {stock_url}: {e}")
             continue
 
-        price = data_price['price']
-        time_info = data_price['time']
+        # 如果未获取到任何数据则跳过
+        if not data_price:
+            logger.warning(f"未获取到价格数据: {stock_url}")
+            continue
+
+        price = data_price.get('price')
+        time_info = data_price.get('time')
+        pe_val = data_price.get('pe_ttm')
+        pb_val = data_price.get('pb')
+        roe_val = data_price.get('roe')
 
         if price != 'N/A':
             try:
                 price_numeric = float(price)
+                pe_numeric = float(pe_val) if pe_val is not None else None
+                pb_numeric = float(pb_val) if pb_val is not None else None
+                roe_numeric = float(roe_val) if roe_val is not None else None
 
                 if time_info:
                     if isinstance(time_info, datetime.datetime):
@@ -74,7 +85,10 @@ def fetch_task():
                     stock_code=stock_code,
                     stock_date=stock_date,
                     stock_price=price_numeric,
-                    stock_time=stock_datetime_str
+                    stock_time=stock_datetime_str,
+                    pe_ttm=pe_numeric,
+                    pb=pb_numeric,
+                    roe=roe_numeric
                 )
 
             except ValueError:

@@ -14,11 +14,20 @@ def test_fetch_task_only_fetches_and_saves():
     storage.query_concern_stocks.return_value = [{"id": 1, "stock_code": "AAPL", "stock_url": "http://example.com"}]
 
     with patch('config.database.get_db_storage', return_value=storage):
-        with patch('apps.core.stock.fetcher.fetch_stock_price', return_value={"price": "95.5", "time": "2026-01-03 12:00:00"}):
+        with patch('apps.core.stock.fetcher.fetch_stock_price', return_value={"price": "95.5", "time": "2026-01-03 12:00:00", "pe_ttm": 12.34, "pb": 1.23, "roe": 5.67}):
             schedule_task = reload_schedule_task()
             schedule_task.fetch_task()
 
-            storage.save_stock_price_history.assert_called_once()
+            storage.save_stock_price_history.assert_called_once_with(
+                stock_code="AAPL",
+                stock_date="2026-01-03",
+                stock_price=95.5,
+                stock_time="2026-01-03 12:00:00",
+                pe_ttm=12.34,
+                pb=1.23,
+                roe=5.67
+            )
+
             # 确认抓取任务不会触发告警相关写入
             assert not storage.save_alert_history.called
             assert not storage.upsert_alert_state.called

@@ -95,3 +95,32 @@ def test_close_clears_pool():
     assert storage.pool is not None
     storage.close()
     assert storage.pool is None
+
+
+def test_save_stock_price_history_with_metrics():
+    conn = make_mock_conn()
+    cur = conn.cursor.return_value
+
+    pool_instance = MagicMock()
+    pool_instance.connection.return_value = conn
+
+    inject_pooleddb(pool_instance)
+
+    storage = MySQLStorage("host", 3306, "user", "pass", "db")
+
+    ok = storage.save_stock_price_history(
+        "AAPL",
+        "2026-01-03",
+        95.5,
+        "2026-01-03 12:00:00",
+        pe_ttm=12.34,
+        pb=1.23,
+        roe=5.67
+    )
+    assert ok is True
+
+    # 校验执行的 SQL 包含新增列并且参数顺序与传入一致
+    cur.execute.assert_called_once()
+    sql, params = cur.execute.call_args[0]
+    assert 'pe_ttm' in sql and 'pb' in sql and 'roe' in sql
+    assert params == ("AAPL", "2026-01-03", "2026-01-03 12:00:00", 95.5, 12.34, 1.23, 5.67)

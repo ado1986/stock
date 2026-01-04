@@ -121,14 +121,38 @@ def fetch_stock(stock_path_code: str, source: Optional[str] = None):
         else:
             return None
 
+def _extract_number(value: str):
+    """从字符串中提取数字，支持带‘%’或中文单位的字符串，返回 float 或 None。"""
+    if value is None:
+        return None
+    try:
+        # 去掉中文、单位、倍、等非数字符号，仅保留数字、点和负号与百分号
+        v = value.replace('\u200b', '').strip()
+        # 如果包含%，保留百分号以便后续处理
+        is_percent = '%' in v
+        # 去掉中文和单位标识（例如：倍）以及逗号
+        import re
+        cleaned = re.sub(r"[^0-9.%\-]", "", v)
+        if cleaned == '' or cleaned == '.' or cleaned == '-' or cleaned == '%':
+            return None
+        if is_percent:
+            cleaned = cleaned.replace('%', '')
+            return float(cleaned)
+        return float(cleaned)
+    except Exception:
+        return None
+
+
 def fetch_stock_price(stock_path_code: str):
-    """抓取指定股票的当日价格"""
+    """抓取指定股票的当日价格，同时尝试抓取 PE / PB / ROE 等关键指标"""
     element_selector = "div.trading-info-box"
     html_content = fetch_stock_by_element_selector(stock_path_code, element_selector)
+
+    price_data = {}
+
     if html_content:
         # 创建BeautifulSoup解析对象
         soup = BeautifulSoup(html_content, 'lxml')  # 使用lxml解析器
-        price_data = {}
         price_div = soup.find('div', class_='price')
         if price_div:
             price = price_div.get_text(strip=True)
@@ -138,10 +162,42 @@ def fetch_stock_price(stock_path_code: str):
         if time_div:
             time_text = time_div.get_text(strip=True)
             price_data['time'] = parse_time_string(time_text)
-        logger.info(price_data)
-        return price_data
-    else:
-        return None
+
+    # 额外抓取盘口中 PE / PB / ROE 指标（有时在不同区域）
+    try:
+        pankou_html = fetch_stock_by_element_selector(stock_path_code, "div.pankou-fold-box")
+        if pankou_html:
+            pankou = parse_html(pankou_html)
+            # 常见键名匹配
+            pe_candidates = [k for k in pankou.keys() if '市盈' in k]
+            pb_candidates = [k for k in pankou.keys() if '市净' in k]
+            roe_candidates = [k for k in pankou.keys() if '净资产收益率' in k or 'ROE' in k or '净利率' in k]
+
+            pe_val = None
+            pb_val = None
+            roe_val = None
+
+            if pe_candidates:
+                pe_val = _extract_number(pankou.get(pe_candidates[0]))
+            if pb_candidates:
+                pb_val = _extract_number(pankou.get(pb_candidates[0]))
+            if roe_candidates:
+                roe_val = _extract_number(pankou.get(roe_candidates[0]))
+
+            # 格式化为保留两位小数
+            if pe_val is not None:
+                price_data['pe_ttm'] = round(pe_val, 2)
+            if pb_val is not None:
+                price_data['pb'] = round(pb_val, 2)
+            if roe_val is not None:
+                # ROE 按百分数的分子部分存储，例如 '12.34%' -> 12.34
+                price_data['roe'] = round(roe_val, 2)
+
+    except Exception as e:
+        logger.warning(f"解析盘口指标失败: {e}")
+
+    logger.info(price_data)
+    return price_data if price_data else None
 
 def parse_time_string(time_str):
     """解析时间字符串为datetime对象"""

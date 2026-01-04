@@ -30,7 +30,7 @@ def inject_pooleddb(pool_instance):
 
 
 def test_get_latest_price():
-    row = {"stock_price": 123.45, "stock_time": "2026-01-03 12:00:00"}
+    row = {"stock_price": 123.45, "stock_time": "2026-01-03 12:00:00", "pe_ttm": 12.34, "pb": 1.23, "roe": 5.67}
     conn = make_mock_conn_with_fetchone(fetchone_value=row)
 
     pool_instance = MagicMock()
