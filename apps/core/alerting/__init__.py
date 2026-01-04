@@ -4,5 +4,6 @@
 """
 
 from .manager import AlertManager
+from apps.core.notification import send_notification
 
-__all__ = ["AlertManager"]
+__all__ = ["AlertManager", "send_notification"]

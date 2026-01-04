@@ -8,7 +8,6 @@ import logging
 from typing import Optional
 
 from config.settings import settings
-from apps.core.notification import send_notification
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +90,9 @@ class AlertManager:
             notified = False
             error_message = None
             try:
-                notified = send_notification(title, content)
+                # 动态从 package 层获取 send_notification（便于在测试中 patch apps.core.alerting.send_notification）
+                from apps.core.alerting import send_notification as package_send
+                notified = package_send(title, content)
             except Exception as e:
                 notified = False
                 error_message = str(e)
